@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Course Recommendation Assistant</title>
+  <style>
+    :root {
+      --primary:      #4f46e5;
+      --primary-dark: #3730a3;
+      --primary-light:#818cf8;
+      --bg:           #f1f5f9;
+      --surface:      #ffffff;
+      --text:         #1e293b;
+      --muted:        #64748b;
+      --border:       #e2e8f0;
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    /* ── Layout ── */
+    .app {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      max-width: 820px;
+      margin: 0 auto;
+      background: var(--surface);
+      box-shadow: 0 0 40px rgba(0,0,0,.12);
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .header-left { display:flex; align-items:center; gap:12px; }
+    .bot-logo {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), #7c3aed);
+      display: flex; align-items:center; justify-content:center;
+      font-size: 1.3em; flex-shrink:0;
+    }
+    .header h1 { font-size:.97em; color:var(--text); font-weight:600; }
+    .header p  { font-size:.75em; color:var(--muted); margin-top:1px; }
+    .online { display:inline-block; width:7px; height:7px; border-radius:50%; background:#22c55e; margin-right:4px; }
+
+    .new-btn {
+      padding: 8px 14px;
+      background: var(--primary);
+      color: white; border:none; border-radius:8px;
+      font-size:.82em; font-weight:600; cursor:pointer;
+      transition: background .2s;
+    }
+    .new-btn:hover { background: var(--primary-dark); }
+
+    /* ── Chat area ── */
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      scroll-behavior: smooth;
+    }
+    .chat::-webkit-scrollbar { width:5px; }
+    .chat::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+
+    /* ── Messages ── */
+    .row { display:flex; gap:10px; align-items:flex-end; animation:pop .22s ease; }
+    .row.user { flex-direction:row-reverse; }
+
+    @keyframes pop {
+      from { opacity:0; transform:translateY(8px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    .av {
+      width:34px; height:34px; border-radius:50%;
+      background: linear-gradient(135deg, var(--primary), #7c3aed);
+      display:flex; align-items:center; justify-content:center;
+      font-size:.9em; flex-shrink:0; align-self:flex-end;
+    }
+    .av.user-av { background: linear-gradient(135deg, #7c3aed, var(--primary)); }
+
+    .bubble {
+      max-width: min(72%, 580px);
+      padding: 11px 15px;
+      font-size: .91em;
+      line-height: 1.65;
+      border-radius: 18px;
+      word-break: break-word;
+    }
+    .row.bot  .bubble {
+      background: var(--bg);
+      color: var(--text);
+      border-radius: 4px 18px 18px 18px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.07);
+    }
+    .row.user .bubble {
+      background: var(--primary);
+      color: white;
+      border-radius: 18px 4px 18px 18px;
+    }
+
+    /* Markdown inside bot bubble */
+    .bubble h2 { font-size:.97em; color:var(--primary); margin:14px 0 5px; }
+    .bubble h3 { font-size:.92em; color:#7c3aed; margin:10px 0 3px; }
+    .bubble strong { color:#1e293b; }
+    .bubble em { color:#475569; }
+    .bubble ul, .bubble ol { padding-left:20px; margin:6px 0; }
+    .bubble li { margin-bottom:4px; }
+    .bubble p  { margin-bottom:7px; }
+    .bubble p:last-child { margin-bottom:0; }
+    .bubble code {
+      background:#e0e7ff; color:#3730a3;
+      padding:2px 6px; border-radius:4px;
+      font-family:monospace; font-size:.88em;
+    }
+    .bubble pre {
+      background:#1e293b; color:#f8fafc;
+      padding:12px; border-radius:8px;
+      overflow-x:auto; margin:8px 0;
+    }
+    .bubble pre code { background:none; color:inherit; padding:0; }
+    .bubble hr { border:none; border-top:1px solid var(--border); margin:10px 0; }
+
+    /* Typing dots */
+    .dots { display:flex; gap:4px; padding:4px 2px; align-items:center; }
+    .dots span {
+      width:8px; height:8px; border-radius:50%; background:#94a3b8;
+      animation:blink 1.2s infinite ease-in-out;
+    }
+    .dots span:nth-child(2) { animation-delay:.2s; }
+    .dots span:nth-child(3) { animation-delay:.4s; }
+    @keyframes blink {
+      0%,80%,100% { transform:scale(.55); opacity:.35; }
+      40%          { transform:scale(1);   opacity:1;   }
+    }
+
+    /* Suggestion chips */
+    .chips {
+      display:flex; flex-wrap:wrap; gap:8px;
+      padding:0 4px; justify-content:center;
+    }
+    .chip {
+      padding: 7px 15px;
+      border: 1.5px solid var(--primary-light);
+      color: var(--primary); background: white;
+      border-radius: 20px; font-size:.82em; cursor:pointer;
+      transition: all .16s; font-family:inherit;
+    }
+    .chip:hover { background:var(--primary); color:white; border-color:var(--primary); }
+
+    /* ── Input area ── */
+    .input-bar {
+      padding: 12px 18px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex; gap:10px; align-items:flex-end;
+      flex-shrink: 0;
+    }
+    .input-wrap {
+      flex:1; border:2px solid var(--border);
+      border-radius:12px; overflow:hidden;
+      transition:border-color .2s;
+    }
+    .input-wrap:focus-within { border-color:var(--primary); }
+    #txt {
+      width:100%; padding:10px 14px;
+      border:none; outline:none;
+      font-family:inherit; font-size:.91em;
+      resize:none; min-height:42px; max-height:120px;
+      line-height:1.5; background:transparent;
+    }
+    .go {
+      width:44px; height:44px; flex-shrink:0;
+      border-radius:10px; border:none;
+      background:var(--primary); color:white;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; transition:background .2s;
+    }
+    .go:hover:not(:disabled) { background:var(--primary-dark); }
+    .go:disabled { opacity:.42; cursor:not-allowed; }
+    .go svg { width:18px; height:18px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="bot-logo">🎓</div>
+      <div>
+        <h1>Course Recommendation Assistant</h1>
+        <p><span class="online"></span>Powered by Google Gemini 1.5 Flash</p>
+      </div>
+    </div>
+    <button class="new-btn" onclick="newChat()">+ New Chat</button>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat" id="chat"></div>
+
+  <!-- Input -->
+  <div class="input-bar">
+    <div class="input-wrap">
+      <textarea id="txt" rows="1"
+        placeholder="Ask me anything about courses, skills, or learning paths…"
+        onkeydown="onKey(event)" oninput="grow(this)"></textarea>
+    </div>
+    <button class="go" id="goBtn" onclick="send()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════
+   Config
+═══════════════════════════════════════ */
+const API_KEY = 'AIzaSyCN-7nfd9Zf5hXh5Yf2l58cYjnTo5oCtMU';
+const URL     = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+const SYSTEM = `You are an expert AI Course Recommendation Assistant. You help learners find the best courses and build personalised learning paths.
+
+Conversation rules:
+- Be warm, encouraging, and conversational
+- Ask ONE question at a time — never overwhelm the user
+- Use structured markdown (## headings, **bold**, - bullet points) in longer responses
+- Recommend real, specific courses from real platforms (Coursera, Udemy, edX, freeCodeCamp, YouTube, Pluralsight, LinkedIn Learning, MIT OpenCourseWare, etc.)
+
+When starting a new conversation, naturally collect:
+1. Their area of interest
+2. Current skill level
+3. Their specific goal (job, project, hobby, etc.)
+4. Weekly time available
+
+Once you have enough context (usually after 3–4 exchanges), provide:
+## 🎯 Top 3 Course Recommendations
+  - Course name, platform, duration, difficulty
+  - Why it suits this specific learner
+## 🗺️ 6-Month Learning Roadmap
+  - Month-by-month milestones
+## 💡 Study Tips (3–4 specific to their situation)
+## ⭐ Next Steps After Completion
+
+After recommendations, answer any follow-up questions helpfully.
+Stay focused on education and learning only.`;
+
+/* ═══════════════════════════════════════
+   State
+═══════════════════════════════════════ */
+let history  = [];
+let busy     = false;
+
+const CHIPS = [
+  '🐍 Learn Python from zero',
+  '🤖 Break into AI / ML',
+  '🌐 Become a web developer',
+  '📊 Start with Data Science',
+  '☁️ Master Cloud & AWS',
+  '🔐 Get into Cybersecurity',
+];
+
+/* ═══════════════════════════════════════
+   Boot
+═══════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', boot);
+
+function boot() {
+  addBot(`👋 Hi! I'm your **AI Course Recommendation Assistant**, powered by Google Gemini.\n\nI'll help you discover the best courses and build a personalised learning path tailored to your goals.\n\n**What would you like to learn today?**`);
+  showChips();
+}
+
+/* ═══════════════════════════════════════
+   Send
+═══════════════════════════════════════ */
+async function send() {
+  const ta   = document.getElementById('txt');
+  const text = ta.value.trim();
+  if (!text || busy) return;
+
+  removeById('chips');
+  ta.value = ''; grow(ta);
+
+  addUser(text);
+  history.push({ role:'user', parts:[{ text }] });
+
+  lock(true);
+  const tid = addTyping();
+
+  try {
+    const reply = await gemini();
+    removeById(tid);
+    addBot(reply);
+    history.push({ role:'model', parts:[{ text: reply }] });
+  } catch(e) {
+    removeById(tid);
+    addBot(`❌ **Error:** ${e.message}\n\nPlease try again.`);
+  } finally {
+    lock(false);
+  }
+}
+
+/* ═══════════════════════════════════════
+   Gemini API call
+═══════════════════════════════════════ */
+async function gemini() {
+  const res = await fetch(URL, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts:[{ text: SYSTEM }] },
+      contents: history,
+      generationConfig: { temperature:0.8, maxOutputTokens:2000 }
+    })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok)
+    throw new Error(data.error?.message ?? `HTTP ${res.status}`);
+  if (data.candidates?.[0]?.finishReason === 'SAFETY')
+    throw new Error('Response blocked by safety filter — please rephrase.');
+
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '(empty response)';
+}
+
+/* ═══════════════════════════════════════
+   UI builders
+═══════════════════════════════════════ */
+function addBot(md) {
+  const row = make('div', 'row bot');
+  row.innerHTML = `
+    <div class="av">🤖</div>
+    <div class="bubble">${toHtml(md)}</div>`;
+  append(row);
+}
+
+function addUser(text) {
+  const row = make('div', 'row user');
+  row.innerHTML = `
+    <div class="bubble">${esc(text).replace(/\n/g,'<br>')}</div>
+    <div class="av user-av">👤</div>`;
+  append(row);
+}
+
+function addTyping() {
+  const id  = 'ty' + Date.now();
+  const row = make('div', 'row bot');
+  row.id    = id;
+  row.innerHTML = `
+    <div class="av">🤖</div>
+    <div class="bubble" style="padding:10px 15px">
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>`;
+  append(row);
+  return id;
+}
+
+function showChips() {
+  const wrap = make('div', 'chips');
+  wrap.id = 'chips';
+  CHIPS.forEach(c => {
+    const btn = make('button', 'chip');
+    btn.textContent = c;
+    btn.onclick = () => { document.getElementById('txt').value = c; send(); };
+    wrap.appendChild(btn);
+  });
+  append(wrap);
+}
+
+/* ═══════════════════════════════════════
+   Helpers
+═══════════════════════════════════════ */
+function append(el) {
+  const chat = document.getElementById('chat');
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function make(tag, cls) {
+  const el = document.createElement(tag);
+  el.className = cls;
+  return el;
+}
+
+function removeById(id) { document.getElementById(id)?.remove(); }
+
+function lock(v) {
+  busy = v;
+  document.getElementById('goBtn').disabled = v;
+  document.getElementById('txt').disabled   = v;
+}
+
+function newChat() {
+  if (!confirm('Start a new conversation? This chat will be cleared.')) return;
+  history = [];
+  document.getElementById('chat').innerHTML = '';
+  boot();
+}
+
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+}
+
+function grow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+/* ═══════════════════════════════════════
+   Markdown → HTML
+═══════════════════════════════════════ */
+function toHtml(md) {
+  let s = esc(md);
+
+  // Fenced code blocks
+  s = s.replace(/```[\w]*\n?([\s\S]*?)```/g,
+    (_, c) => `<pre><code>${c.trim()}</code></pre>`);
+
+  // Inline code
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+  // Headings
+  s = s.replace(/^#### (.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/^### (.+)$/gm,  '<h3>$1</h3>');
+  s = s.replace(/^## (.+)$/gm,   '<h2>$1</h2>');
+  s = s.replace(/^# (.+)$/gm,    '<h2>$1</h2>');
+
+  // Bold + italic
+  s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  s = s.replace(/\*\*(.+?)\*\*/g,     '<strong>$1</strong>');
+  s = s.replace(/\*([^*\n]+)\*/g,     '<em>$1</em>');
+
+  // HR
+  s = s.replace(/^---$/gm, '<hr>');
+
+  // Numbered lists
+  s = s.replace(/((?:^\d+\..+\n?)+)/gm, m =>
+    '<ol>' + m.trim().split('\n')
+      .map(l => `<li>${l.replace(/^\d+\.\s*/,'')}</li>`).join('') + '</ol>');
+
+  // Bullet lists
+  s = s.replace(/((?:^[-*•].+\n?)+)/gm, m =>
+    '<ul>' + m.trim().split('\n')
+      .map(l => `<li>${l.replace(/^[-*•]\s*/,'')}</li>`).join('') + '</ul>');
+
+  // Paragraphs (split on blank lines)
+  s = s.split(/\n{2,}/)
+    .map(p => p.trim()).filter(Boolean)
+    .map(p => /^<(h[1-6]|ul|ol|pre|hr|blockquote)/.test(p)
+      ? p
+      : `<p>${p.replace(/\n/g,'<br>')}</p>`)
+    .join('\n');
+
+  return s;
+}
+
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
